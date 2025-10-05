@@ -21,13 +21,16 @@ RAW  = ROOT / "source_raw"
 
 FILE_ORIG   = RAW / "25Q1-CreditCardOrigination.csv"
 FILE_BAL    = RAW / "25Q1-CreditCardBalances.csv"
-FILE_DEF    = RAW / "Loan_Default.csv"  # fallback yearly default file (optional)
-FILE_PRIME  = RAW / "DPRIME.xlsx"       # FRED prime rate (xlsx download)
-# DRALACBN may be CSV or XLSX; we’ll detect either
-FILE_DFLT_Q = RAW / "DRALACBN.csv"
-FILE_DFLT_Q_XLSX = RAW / "DRALACBN.xlsx"
+FILE_DEF    = RAW / "Loan_Default.csv"          # fallback yearly default (optional)
 
-FILE_XML    = RAW / "API_FR.INR.LEND_DS2_en_xml_v2_1223050.xml"  # World Bank lending XML
+# FRED sources
+FILE_PRIME  = RAW / "DPRIME.xlsx"               # Bank Prime Loan Rate (daily)
+FILE_PRIME_CSV = RAW / "DPRIME.csv"             # (alternative)
+FILE_DFLT_Q = RAW / "DRALACBN.csv"              # Delinquency Rate (quarterly)
+FILE_DFLT_Q_XLSX = RAW / "DRALACBN.xlsx"        # (alternative)
+
+# World Bank lending rate (annual)
+FILE_XML    = RAW / "API_FR.INR.LEND_DS2_en_xml_v2_1223050.xml"
 
 MYSQL_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
@@ -110,7 +113,7 @@ def add_year_quarter(df: pd.DataFrame) -> pd.DataFrame:
     parts = qnorm.apply(parse_quarter_to_yq).apply(pd.Series)
     return df.reset_index(drop=True).join(parts.reset_index(drop=True))
 
-# ---------- CSV readers (skip 'Source:' banner) ----------
+# ---------- CSV readers (skip 'Source:' banner') ----------
 
 def read_fed_csv(path: Path, **kwargs) -> pd.DataFrame:
     skip = 0
@@ -135,71 +138,9 @@ def read_csv_map(path: Path, colmap: Dict[str, str]) -> pd.DataFrame:
     df = df[[c for c in df.columns if c in keep]].copy()
     return df
 
-# ---------- extract ----------
+# ---------- generic FRED reader ----------
 
-def extract_origination() -> pd.DataFrame:
-    colmap = {
-        "YRQTR": "quarter",
-        "New Originations ($Billions)": "origination_amt_bil",
-        "Number of New Accounts (Millions)": "originations_cnt_mil",
-    }
-    df = read_csv_map(FILE_ORIG, colmap)
-    df["origination_amt"]  = billions_to_amount(df["origination_amt_bil"])
-    df["originations_cnt"] = millions_to_count(df["originations_cnt_mil"])
-    return df[["quarter", "origination_amt", "originations_cnt"]]
-
-def extract_balances() -> pd.DataFrame:
-    colmap = {
-        "YRQTR": "quarter",
-        "Total Balances ($Billions)": "balance_bil",
-    }
-    df = read_csv_map(FILE_BAL, colmap)
-    df["balance_amt"] = billions_to_amount(df["balance_bil"])
-    return df[["quarter", "balance_amt"]]
-
-def extract_defaults_quarterly_from_fred() -> Optional[pd.DataFrame]:
-    """
-    FRED delinquency rate DRALACBN (quarterly, percent).
-    Accepts CSV or XLSX. Returns: year, quarter, default_rate (fraction 0..1).
-    """
-    path = FILE_DFLT_Q if FILE_DFLT_Q.exists() else (FILE_DFLT_Q_XLSX if FILE_DFLT_Q_XLSX.exists() else None)
-    if not path:
-        return None
-
-    if path.suffix.lower() in {".xlsx", ".xls"}:
-        df = pd.read_excel(path)
-    else:
-        df = pd.read_csv(path)
-
-    cols = [str(c).strip() for c in df.columns]
-    df.columns = cols
-
-    # date column
-    date_col = next((c for c in df.columns if c.lower() in {"date", "observation_date"}), None)
-    if date_col is None:
-        return None
-
-    # pick the first non-date column as value
-    val_col = next((c for c in df.columns if c != date_col), None)
-    if val_col is None:
-        return None
-
-    df = df.rename(columns={date_col: "date", val_col: "rate_pct"})
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df["rate_pct"] = pd.to_numeric(df["rate_pct"].replace(".", np.nan), errors="coerce")
-    df = df.dropna(subset=["date", "rate_pct"]).sort_values("date")
-
-    df["year"]    = df["date"].dt.year
-    df["quarter"] = df["date"].dt.quarter
-
-    q = (
-        df.groupby(["year", "quarter"], as_index=False)
-          .last()[["year", "quarter", "rate_pct"]]
-          .rename(columns={"rate_pct": "default_rate"})
-    )
-    q["default_rate"] = q["default_rate"] / 100.0  # percent → fraction
-    return q
-def _read_fred_series(path: Path, value_candidates=()):
+def _read_fred_series(path: Path, value_candidates=()) -> pd.DataFrame:
     """
     Read a FRED CSV/XLSX (which can have metadata rows before the header).
     Returns columns: date(datetime64[ns]), value(float).
@@ -219,7 +160,6 @@ def _read_fred_series(path: Path, value_candidates=()):
                 break
         df = pd.read_excel(path, header=hdr_row) if hdr_row is not None else pd.read_excel(path)
 
-    # normalize columns
     df = df.rename(columns={c: str(c).strip().lower() for c in df.columns})
     date_col = next((c for c in df.columns if c in {"date", "observation_date"}), df.columns[0])
 
@@ -244,10 +184,32 @@ def _read_fred_series(path: Path, value_candidates=()):
     }).dropna(subset=["date", "value"])
     return out
 
+# ---------- extract ----------
+
+def extract_origination() -> pd.DataFrame:
+    colmap = {
+        "YRQTR": "quarter",
+        "New Originations ($Billions)": "origination_amt_bil",
+        "Number of New Accounts (Millions)": "originations_cnt_mil",
+    }
+    df = read_csv_map(FILE_ORIG, colmap)
+    df["origination_amt"]  = billions_to_amount(df["origination_amt_bil"])
+    df["originations_cnt"] = millions_to_count(df["originations_cnt_mil"])
+    return df[["quarter", "origination_amt", "originations_cnt"]]
+
+def extract_balances() -> pd.DataFrame:
+    colmap = {
+        "YRQTR": "quarter",
+        "Total Balances ($Billions)": "balance_bil",
+    }
+    df = read_csv_map(FILE_BAL, colmap)
+    df["balance_amt"] = billions_to_amount(df["balance_bil"])
+    return df[["quarter", "balance_amt"]]
+
 def extract_prime_quarterly() -> pd.DataFrame:
     """FRED DPRIME → quarterly average."""
-    src = FILE_PRIME if FILE_PRIME.exists() else (RAW / "DPRIME.csv")
-    x = _read_fred_series(src, value_candidates=("dprime", "bank prime loan rate"))
+    src = FILE_PRIME if FILE_PRIME.exists() else (FILE_PRIME_CSV if FILE_PRIME_CSV.exists() else None)
+    x = _read_fred_series(src, value_candidates=("dprime", "bank prime loan rate")) if src else pd.DataFrame()
     if x.empty:
         return pd.DataFrame(columns=["quarter_key", "year", "quarter", "prime_rate"])
     x["year"] = x["date"].dt.year
@@ -256,64 +218,55 @@ def extract_prime_quarterly() -> pd.DataFrame:
     q["quarter_key"] = q["year"] * 10 + q["quarter"]
     return q[["quarter_key", "year", "quarter", "prime_rate"]]
 
-def extract_defaults_quarterly_from_fred() -> pd.DataFrame:
-    """FRED DRALACBN → quarterly value."""
-    src = FILE_DFLT_Q if FILE_DFLT_Q.exists() else FILE_DFLT_Q_XLSX
-    x = _read_fred_series(src, value_candidates=("dralacbn", "delinquency rate"))
+def extract_default_quarterly_from_dralacbn() -> pd.DataFrame:
+    """
+    FRED DRALACBN (Delinquency Rate on All Loans, All Commercial Banks) – quarterly percent.
+    Returns: year, quarter_num, default_rate (fraction 0..1).
+    """
+    src = FILE_DFLT_Q if FILE_DFLT_Q.exists() else (FILE_DFLT_Q_XLSX if FILE_DFLT_Q_XLSX.exists() else None)
+    x = _read_fred_series(src, value_candidates=("dralacbn", "delinquency rate")) if src else pd.DataFrame()
     if x.empty:
         return pd.DataFrame(columns=["year", "quarter_num", "default_rate"])
     x["year"] = x["date"].dt.year
     x["quarter_num"] = x["date"].dt.quarter
-    return (x.groupby(["year", "quarter_num"], as_index=False)["value"]
-              .mean()
-              .rename(columns={"value": "default_rate"}))
-# ---------- default-rate fallback (yearly, from Loan_Default.csv) ----------
+    q = x.groupby(["year", "quarter_num"], as_index=False)["value"].mean().rename(columns={"value": "default_rate"})
+    # DRALACBN is in percent; store as fraction
+    q["default_rate"] = q["default_rate"] / 100.0
+    return q
 
 def extract_defaults_yearly() -> pd.DataFrame:
     """
-    Compute an annual default_rate from Loan_Default.csv.
-    Returns cols: year, default_rate (0–100 if your file is in %, else 0–1).
-    If the file/columns aren't present, returns an empty frame.
+    Compute an annual default_rate from Loan_Default.csv (optional student dataset).
+    Returns cols: year, default_rate (0..1).
     """
-    try:
-        if FILE_DEF is None or not FILE_DEF.exists():
-            return pd.DataFrame(columns=["year", "default_rate"])
-
-        df = pd.read_csv(FILE_DEF)
-        df.columns = [str(c).strip() for c in df.columns]
-
-        # find a year column and a default indicator column
-        year_col = next((c for c in df.columns if c.lower() == "year"), None)
-        status_col = next(
-            (c for c in df.columns
-             if c.lower() in {"status", "default", "default_flag", "chargeoff", "charge_off"}),
-            None
-        )
-        if year_col is None or status_col is None:
-            return pd.DataFrame(columns=["year", "default_rate"])
-
-        # normalize to a 0/1 default flag
-        s = df[status_col]
-        default_flag = (
-            (s == 1)
-            | (s.astype(str).str.strip().str.lower().isin({"1", "true", "default", "charge-off", "chargeoff"}))
-        ).astype(int)
-
-        out = (
-            pd.DataFrame({"year": pd.to_numeric(df[year_col], errors="coerce"), "default_flag": default_flag})
-              .dropna(subset=["year"])
-              .astype({"year": int})
-              .groupby("year", as_index=False)["default_flag"].mean()
-              .rename(columns={"default_flag": "default_rate"})
-        )
-        return out
-    except Exception:
-        # fail-safe: return empty so merges won’t break
+    if FILE_DEF is None or not FILE_DEF.exists():
         return pd.DataFrame(columns=["year", "default_rate"])
 
-# simple alias so your old call won’t crash if it still appears
-def extract_defaults_yearly_fallback() -> pd.DataFrame:
-    return extract_defaults_yearly()
+    df = pd.read_csv(FILE_DEF)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    year_col = next((c for c in df.columns if c.lower() == "year"), None)
+    status_col = next(
+        (c for c in df.columns if c.lower() in {"status", "default", "default_flag", "chargeoff", "charge_off"}),
+        None,
+    )
+    if year_col is None or status_col is None:
+        return pd.DataFrame(columns=["year", "default_rate"])
+
+    s = df[status_col]
+    default_flag = (
+        (s == 1) |
+        (s.astype(str).str.strip().str.lower().isin({"1", "true", "default", "charge-off", "chargeoff"}))
+    ).astype(int)
+
+    out = (
+        pd.DataFrame({"year": pd.to_numeric(df[year_col], errors="coerce"), "default_flag": default_flag})
+          .dropna(subset=["year"])
+          .astype({"year": int})
+          .groupby("year", as_index=False)["default_flag"].mean()
+          .rename(columns={"default_flag": "default_rate"})
+    )
+    return out
 
 def extract_lending_yearly(country: str = "United States") -> Optional[pd.DataFrame]:
     if FILE_XML is None or not FILE_XML.exists():
@@ -445,13 +398,12 @@ def table_count(cx, name: str) -> int:
     return int(cx.execute(text(f"SELECT COUNT(*) FROM {name}")).scalar_one())
 
 # ---------- main pipeline ----------
-# ---- add near the top (under imports) ----
+
 DEBUG = False
 def log(*a, **k):
     if DEBUG:
         print(*a, **k)
 
-# ---- replace your existing main() and CLI block with the version below ----
 def main(recreate: bool = False, debug: bool = False):
     global DEBUG
     DEBUG = debug
@@ -461,37 +413,25 @@ def main(recreate: bool = False, debug: bool = False):
     log("\n[FILES]")
     log(f"  ORIG        = {FILE_ORIG}   exists={FILE_ORIG.exists()}")
     log(f"  BAL         = {FILE_BAL}    exists={FILE_BAL.exists()}")
-    log(f"  DPRIME.xlsx = {FILE_PRIME}  exists={FILE_PRIME.exists()}")
-    # show which DRALACBN we’ll use
+    log(f"  DPRIME.xlsx = {FILE_PRIME}  exists={FILE_PRIME.exists() or FILE_PRIME_CSV.exists()}")
     dflt_path = FILE_DFLT_Q if FILE_DFLT_Q.exists() else (FILE_DFLT_Q_XLSX if FILE_DFLT_Q_XLSX.exists() else None)
     log(f"  DRALACBN    = {dflt_path}   exists={bool(dflt_path)}")
     log(f"  WB XML      = {FILE_XML}    exists={FILE_XML.exists()}")
 
     # 1) extract
-    orig     = extract_origination()
-    bal      = extract_balances()
-    dflt_q   = extract_defaults_quarterly_from_fred()
-    dflt_yfb = extract_defaults_yearly_fallback()
-    prime_q  = extract_prime_quarterly()
+    orig      = extract_origination()
+    bal       = extract_balances()
+    prime_q   = extract_prime_quarterly()
+    dflt_q    = extract_default_quarterly_from_dralacbn()
+    dflt_yfb  = extract_defaults_yearly()
     lending_y = extract_lending_yearly()
 
-    # quick extract summaries
+    # summaries
     log("\n[EXTRACT SUMMARY]")
     log(f"  orig rows={len(orig)} cols={list(orig.columns)}")
     log(f"  bal  rows={len(bal)}  cols={list(bal.columns)}")
-    log(f"  prime_q rows={0 if prime_q is None else len(prime_q)}")
-    if prime_q is not None and not prime_q.empty:
-        log("    prime_q sample:\n", prime_q.head(3).to_string(index=False))
-        log("    prime_q quarter_key range:",
-            int(prime_q['quarter_key'].min()), "→", int(prime_q['quarter_key'].max()))
-    else:
-        log("    prime_q is EMPTY")
-
-    log(f"  dflt_q rows={0 if dflt_q is None else len(dflt_q)}")
-    if dflt_q is not None and not dflt_q.empty:
-        log("    dflt_q sample:\n", dflt_q.head(3).to_string(index=False))
-    else:
-        log("    dflt_q is EMPTY")
+    log(f"  prime_q rows={len(prime_q)}" if not prime_q.empty else "  prime_q is EMPTY")
+    log(f"  dflt_q rows={len(dflt_q)}" if not dflt_q.empty else "  dflt_q is EMPTY")
     log(f"  dflt_yfb rows={len(dflt_yfb)} (yearly fallback)")
     if lending_y is not None:
         log(f"  lending_y rows={len(lending_y)} years {lending_y['year'].min()}→{lending_y['year'].max()}")
@@ -502,17 +442,16 @@ def main(recreate: bool = False, debug: bool = False):
     base = orig.merge(bal, on="quarter", how="left")
     base = add_year_quarter(base)
 
-    # defaults: prefer quarterly, else yearly
-    if dflt_q is not None and not dflt_q.empty:
-        base = base.merge(dflt_q.rename(columns={"quarter": "quarter_num"}),
-                          on=["year", "quarter_num"], how="left")
+    # default: prefer quarterly, else yearly
+    if not dflt_q.empty:
+        base = base.merge(dflt_q, on=["year", "quarter_num"], how="left")
     elif not dflt_yfb.empty:
         base = base.merge(dflt_yfb, on="year", how="left")
     else:
         base["default_rate"] = np.nan
 
-    # prime: quarterly via quarter_key
-    if prime_q is not None and not prime_q.empty:
+    # prime: merge by quarter_key
+    if not prime_q.empty:
         base = base.merge(prime_q[["quarter_key", "prime_rate"]], on="quarter_key", how="left")
     else:
         base["prime_rate"] = np.nan
@@ -523,21 +462,19 @@ def main(recreate: bool = False, debug: bool = False):
     else:
         base["lending_rate"] = np.nan
 
-    # show merge health
+    # diagnostics
     log("\n[MERGE CHECKS]")
     log(f"  base rows after merges = {len(base)}")
-    log("  non-null counts:",
-        base[["prime_rate","default_rate","lending_rate"]].notna().sum().to_dict())
-    log("  base sample:\n", base[[
-        "year","quarter_num","quarter_key","prime_rate","default_rate","lending_rate"
-    ]].head(8).to_string(index=False))
+    log("  non-null counts:", base[["prime_rate","default_rate","lending_rate"]].notna().sum().to_dict())
+    log("  base sample:\n", base[["year","quarter_num","quarter_key","prime_rate","default_rate","lending_rate"]]
+        .head(8).to_string(index=False))
 
     # 3) load
     with eng.begin() as cx:
         if recreate:
             cx.execute(text("DELETE FROM fact_credit_metrics_qtr"))
 
-        # dims: date
+        # dim date
         dim_rows = (
             base[["quarter_key", "year", "quarter_num", "quarter_start", "quarter_end"]]
             .drop_duplicates()
@@ -553,9 +490,9 @@ def main(recreate: bool = False, debug: bool = False):
         fact_rows = []
         for _, r in base.iterrows():
             fact_rows.append({
-                "quarter_key":     int(r["quarter_key"]),
-                "geo_key":         int(geo_key),
-                "product_key":     int(product_key),
+                "quarter_key":      int(r["quarter_key"]),
+                "geo_key":          int(geo_key),
+                "product_key":      int(product_key),
                 "originations_cnt": float(r["originations_cnt"]) if pd.notna(r["originations_cnt"]) else None,
                 "origination_amt":  float(r["origination_amt"])  if pd.notna(r["origination_amt"])  else None,
                 "balance_amt":      float(r["balance_amt"])      if pd.notna(r["balance_amt"])      else None,
@@ -575,6 +512,7 @@ def main(recreate: bool = False, debug: bool = False):
     print("ETL completed ✓")
     print(out)
 
+# ---------- CLI ----------
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
