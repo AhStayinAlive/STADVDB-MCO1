@@ -1,0 +1,11 @@
+__pycache__/
+.venv/
+*.pyc
+
+.env
+
+source_raw/*
+!source_raw/.gitkeep
+*.csv
+*.xlsx
+*.xml

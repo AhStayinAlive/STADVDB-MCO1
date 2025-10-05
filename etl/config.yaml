@@ -1,0 +1,13 @@
+db:
+ host: 127.0.0.1
+ port: 3306
+ user: dw
+ password: DwPass!123
+ source_schema: src_mco
+ warehouse_schema: dw_mco
+sources:
+ csv: "path\to\your.csv"
+ json_url: "https://api.example.com/endpoint"
+ xlsx: "path\to\your.xlsx"
+scheduling:
+ mode: "manual"   
