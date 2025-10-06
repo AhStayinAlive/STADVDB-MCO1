@@ -4,8 +4,3 @@ __pycache__/
 
 .env
 
-source_raw/*
-!source_raw/.gitkeep
-*.csv
-*.xlsx
-*.xml
