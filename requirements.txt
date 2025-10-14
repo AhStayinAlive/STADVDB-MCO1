@@ -1,0 +1,20 @@
+# Core data processing
+pandas>=1.5.0
+numpy>=1.21.0
+
+# Database connectivity
+sqlalchemy>=1.4.0
+pymysql>=1.0.0
+
+# Excel file support
+openpyxl>=3.0.0
+
+# XML parsing (usually included with Python, but explicit for clarity)
+lxml>=4.6.0
+
+# Optional: For better Excel support
+xlrd>=2.0.0
+
+# Optional: For enhanced data validation
+openpyxl>=3.0.0
+

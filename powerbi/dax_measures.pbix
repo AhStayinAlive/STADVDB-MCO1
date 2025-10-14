@@ -1,0 +1,251 @@
+# Power BI DAX Measures for Credit Card OLAP Analysis
+
+## Key Performance Indicators (KPIs)
+
+### 1. Origination Metrics
+```dax
+Total Originations Count = SUM(v_olap_credit_metrics[originations_cnt])
+
+Total Origination Amount = SUM(v_olap_credit_metrics[origination_amt])
+
+Average Origination per Account = 
+DIVIDE(
+    SUM(v_olap_credit_metrics[origination_amt]),
+    SUM(v_olap_credit_metrics[originations_cnt]),
+    0
+)
+
+Origination Growth Rate = 
+VAR CurrentPeriod = SUM(v_olap_credit_metrics[origination_amt])
+VAR PreviousPeriod = 
+    CALCULATE(
+        SUM(v_olap_credit_metrics[origination_amt]),
+        SAMEPERIODLASTYEAR(dim_date_qtr[quarter_start])
+    )
+RETURN
+    DIVIDE(CurrentPeriod - PreviousPeriod, PreviousPeriod, 0)
+```
+
+### 2. Balance Metrics
+```dax
+Total Balance Amount = SUM(v_olap_credit_metrics[balance_amt])
+
+Balance Growth Rate = 
+VAR CurrentPeriod = SUM(v_olap_credit_metrics[balance_amt])
+VAR PreviousPeriod = 
+    CALCULATE(
+        SUM(v_olap_credit_metrics[balance_amt]),
+        SAMEPERIODLASTYEAR(dim_date_qtr[quarter_start])
+    )
+RETURN
+    DIVIDE(CurrentPeriod - PreviousPeriod, PreviousPeriod, 0)
+
+Balance to Origination Ratio = 
+DIVIDE(
+    SUM(v_olap_credit_metrics[balance_amt]),
+    SUM(v_olap_credit_metrics[origination_amt]),
+    0
+)
+```
+
+### 3. Risk Metrics
+```dax
+Average Default Rate = AVERAGE(v_olap_credit_metrics[default_rate])
+
+Average Prime Rate = AVERAGE(v_olap_credit_metrics[prime_rate])
+
+Average Lending Rate = AVERAGE(v_olap_credit_metrics[lending_rate])
+
+Prime Lending Spread = 
+AVERAGE(v_olap_credit_metrics[prime_rate]) - AVERAGE(v_olap_credit_metrics[lending_rate])
+
+High Risk Accounts = 
+CALCULATE(
+    SUM(v_olap_credit_metrics[originations_cnt]),
+    v_olap_credit_metrics[risk_category] = "High Risk"
+)
+
+Risk Distribution = 
+SWITCH(
+    SELECTEDVALUE(v_olap_credit_metrics[risk_category]),
+    "High Risk", "🔴 High Risk",
+    "Medium Risk", "🟡 Medium Risk", 
+    "Low Risk", "🟢 Low Risk",
+    "Unknown", "⚪ Unknown"
+)
+```
+
+### 4. Time Intelligence Measures
+```dax
+Quarter over Quarter Growth = 
+VAR CurrentQuarter = SUM(v_olap_credit_metrics[origination_amt])
+VAR PreviousQuarter = 
+    CALCULATE(
+        SUM(v_olap_credit_metrics[origination_amt]),
+        DATEADD(dim_date_qtr[quarter_start], -1, QUARTER)
+    )
+RETURN
+    DIVIDE(CurrentQuarter - PreviousQuarter, PreviousQuarter, 0)
+
+Year to Date Originations = 
+TOTALYTD(
+    SUM(v_olap_credit_metrics[origination_amt]),
+    dim_date_qtr[quarter_start]
+)
+
+Year to Date Balance = 
+TOTALYTD(
+    SUM(v_olap_credit_metrics[balance_amt]),
+    dim_date_qtr[quarter_start]
+)
+
+Moving Average 4 Quarters = 
+AVERAGEX(
+    DATESINPERIOD(
+        dim_date_qtr[quarter_start],
+        LASTDATE(dim_date_qtr[quarter_start]),
+        -4,
+        QUARTER
+    ),
+    SUM(v_olap_credit_metrics[origination_amt])
+)
+```
+
+### 5. Comparative Analysis
+```dax
+Market Share by Product = 
+DIVIDE(
+    SUM(v_olap_credit_metrics[origination_amt]),
+    CALCULATE(
+        SUM(v_olap_credit_metrics[origination_amt]),
+        ALL(dim_product[product_type])
+    ),
+    0
+)
+
+Performance vs Average = 
+VAR CurrentValue = SUM(v_olap_credit_metrics[origination_amt])
+VAR AverageValue = 
+    CALCULATE(
+        AVERAGE(v_olap_credit_metrics[origination_amt]),
+        ALL(dim_date_qtr[year], dim_date_qtr[quarter])
+    )
+RETURN
+    DIVIDE(CurrentValue - AverageValue, AverageValue, 0)
+
+Top Performer Indicator = 
+IF(
+    [Performance vs Average] > 0.1,
+    "🏆 Top Performer",
+    IF(
+        [Performance vs Average] < -0.1,
+        "📉 Below Average",
+        "📊 Average"
+    )
+)
+```
+
+### 6. Advanced OLAP Measures
+```dax
+Cumulative Originations = 
+CALCULATE(
+    SUM(v_olap_credit_metrics[origination_amt]),
+    FILTER(
+        ALL(dim_date_qtr[quarter_start]),
+        dim_date_qtr[quarter_start] <= MAX(dim_date_qtr[quarter_start])
+    )
+)
+
+Seasonal Index = 
+VAR CurrentQuarter = SUM(v_olap_credit_metrics[origination_amt])
+VAR YearlyAverage = 
+    CALCULATE(
+        AVERAGE(v_olap_credit_metrics[origination_amt]),
+        ALL(dim_date_qtr[quarter])
+    )
+RETURN
+    DIVIDE(CurrentQuarter, YearlyAverage, 0)
+
+Volatility Index = 
+STDEV.P(v_olap_credit_metrics[origination_amt])
+
+Trend Direction = 
+VAR CurrentPeriod = SUM(v_olap_credit_metrics[origination_amt])
+VAR PreviousPeriod = 
+    CALCULATE(
+        SUM(v_olap_credit_metrics[origination_amt]),
+        DATEADD(dim_date_qtr[quarter_start], -1, QUARTER)
+    )
+RETURN
+    IF(
+        CurrentPeriod > PreviousPeriod,
+        "📈 Increasing",
+        IF(
+            CurrentPeriod < PreviousPeriod,
+            "📉 Decreasing",
+            "➡️ Stable"
+        )
+    )
+```
+
+## Calculated Columns for Enhanced Analysis
+
+### Date Intelligence
+```dax
+Quarter Label = 
+dim_date_qtr[year] & " Q" & dim_date_qtr[quarter]
+
+Fiscal Year = 
+IF(
+    dim_date_qtr[quarter] >= 1,
+    dim_date_qtr[year],
+    dim_date_qtr[year] - 1
+)
+
+Quarter in Year = 
+RANKX(
+    ALL(dim_date_qtr[quarter_start]),
+    dim_date_qtr[quarter_start],
+    ,
+    ASC
+)
+```
+
+### Product Analysis
+```dax
+Product Category = 
+SWITCH(
+    dim_product[product_type],
+    "Credit Card", "Consumer Credit",
+    "Business Card", "Commercial Credit",
+    "Secured Card", "Specialized Credit",
+    "Other"
+)
+
+Market Segment = 
+IF(
+    dim_product[segment] = "Consumer",
+    "Retail",
+    "Commercial"
+)
+```
+
+## Usage Guidelines
+
+1. **Import these measures** into your Power BI model
+2. **Create hierarchies** for drill-down analysis:
+   - Year → Quarter → Month
+   - Country → State → City
+   - Product Type → Product Code
+3. **Use measures in visualizations** for consistent calculations
+4. **Apply filters** to focus on specific time periods or segments
+5. **Create bookmarks** for different analysis scenarios
+
+## Performance Tips
+
+- Use measures instead of calculated columns for aggregations
+- Avoid complex nested CALCULATE functions
+- Use variables (VAR) to improve readability and performance
+- Consider using aggregations for large datasets
+
+
