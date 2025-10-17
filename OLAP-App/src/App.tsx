@@ -1,7 +1,7 @@
-import Dashboard from './olap-dashboard';
+import CubeDashboard from './cube-dashboard';
 
 function App() {
-  return <Dashboard />;
+  return <CubeDashboard />;
 }
 
 export default App;

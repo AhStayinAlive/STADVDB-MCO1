@@ -1,4 +1,5 @@
 -- Manual Event Setup for Automated Maintenance
+
 -- Run this script after all other scripts are completed
 
 USE gosales_dw;
@@ -31,4 +32,6 @@ FROM INFORMATION_SCHEMA.EVENTS
 WHERE EVENT_SCHEMA = 'gosales_dw';
 
 SELECT 'Events created successfully' as status;
+
+
 
