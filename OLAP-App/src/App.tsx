@@ -1,7 +1,7 @@
-import CubeDashboard from './cube-dashboard';
+import SimpleDashboard from './simple-dashboard';
 
 function App() {
-  return <CubeDashboard />;
+  return <SimpleDashboard />;
 }
 
 export default App;
