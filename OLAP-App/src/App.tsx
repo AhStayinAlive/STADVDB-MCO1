@@ -1,7 +1,7 @@
-import SimpleDashboard from './simple-dashboard';
+import OLAPDashboard from './olap-dashboard';
 
 function App() {
-  return <SimpleDashboard />;
+  return <OLAPDashboard />;
 }
 
 export default App;
