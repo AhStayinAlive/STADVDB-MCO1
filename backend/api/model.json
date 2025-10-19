@@ -1,0 +1,74 @@
+{
+  "name": "mco_model",
+  "stores": {
+    "default": { "type": "sql" }
+  },
+  "cubes": [
+    {
+      "name": "credit_metrics",
+      "label": "Credit Metrics (quarterly)",
+      "measures": [
+        { "name": "originations_cnt", "aggregations": ["sum"] },
+        { "name": "origination_amt",  "aggregations": ["sum"] },
+        { "name": "balance_amt",     "aggregations": ["sum"] },
+        { "name": "default_rate",    "aggregations": ["avg"] },
+        { "name": "prime_rate",      "aggregations": ["avg"] },
+        { "name": "lending_rate",    "aggregations": ["avg"] }
+      ],
+      "dimensions": ["date_qtr", "geo", "product"],
+      "mappings": {
+        "fact": {
+          "table": "fact_credit_metrics_qtr",
+          "key": ["quarter_key", "geo_key", "product_key"]
+        }
+      }
+    }
+  ],
+  "dimensions": [
+    {
+      "name": "date_qtr",
+      "label": "Quarter",
+      "levels": [
+        { "name": "quarter_key", "level_attribute": "quarter_key", "type": "integer" },
+        { "name": "year",        "level_attribute": "year",        "type": "integer" },
+        { "name": "quarter",     "level_attribute": "quarter",     "type": "integer" }
+      ],
+      "mappings": {
+        "table": "dim_date_qtr",
+        "key": "quarter_key",
+        "attributes": {
+          "year": "year",
+          "quarter": "quarter",
+          "quarter_start": "quarter_start",
+          "quarter_end": "quarter_end"
+        }
+      }
+    },
+    {
+      "name": "geo",
+      "label": "Geo",
+      "levels": [
+        { "name": "geo_key", "level_attribute": "geo_key", "type": "integer" },
+        { "name": "country", "level_attribute": "country", "type": "string" }
+      ],
+      "mappings": {
+        "table": "dim_geo",
+        "key": "geo_key",
+        "attributes": {"country": "country", "state_province": "state_province", "city": "city"}
+      }
+    },
+    {
+      "name": "product",
+      "label": "Product",
+      "levels": [
+        { "name": "product_key", "level_attribute": "product_key", "type": "integer" },
+        { "name": "product_code", "level_attribute": "product_code", "type": "string" }
+      ],
+      "mappings": {
+        "table": "dim_product",
+        "key": "product_key",
+        "attributes": {"product_code": "product_code", "product_type": "product_type", "segment": "segment"}
+      }
+    }
+  ]
+}

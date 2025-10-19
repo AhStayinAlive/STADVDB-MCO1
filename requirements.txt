@@ -1,0 +1,5 @@
+Django
+cubes
+django-cors-headers
+setuptools
+mysqlclient 
