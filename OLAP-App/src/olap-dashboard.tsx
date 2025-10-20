@@ -1,6 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+} from "recharts";
 import { OLAPAdapter } from "../adapters/olapAdapter";
+import { formatPeso, formatPercent } from "../utils/formatters";
 
 const Dashboard = () => {
   const [originationData, setOriginationData] = useState([]);
@@ -14,7 +25,7 @@ const Dashboard = () => {
         const [origination, balance, defaults] = await Promise.all([
           OLAPAdapter.fetchOriginationByYear(),
           OLAPAdapter.fetchBalanceByYear(),
-          OLAPAdapter.fetchDefaultRateByYear()
+          OLAPAdapter.fetchDefaultRateByYear(),
         ]);
         setOriginationData(origination);
         setBalanceData(balance);
@@ -35,33 +46,36 @@ const Dashboard = () => {
       <h1 className="text-2xl font-bold mb-6">Credit Metrics Dashboard</h1>
 
       <div className="grid grid-cols-2 gap-6">
+        {/* --- Origination Amount --- */}
         <div className="bg-gray-800 p-6 rounded-lg">
           <h2 className="text-lg font-semibold mb-4">Origination Amount by Year</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={originationData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="year" stroke="#9ca3af" />
-              <YAxis stroke="#9ca3af" />
-              <Tooltip />
+              <YAxis stroke="#9ca3af" tickFormatter={formatPeso} />
+              <Tooltip formatter={(v) => formatPeso(v)} />
               <Bar dataKey="origination_amt" fill="#00D9FF" />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
+        {/* --- Balance Amount --- */}
         <div className="bg-gray-800 p-6 rounded-lg">
           <h2 className="text-lg font-semibold mb-4">Balance Amount by Year</h2>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={balanceData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="year" stroke="#9ca3af" />
-              <YAxis stroke="#9ca3af" />
-              <Tooltip />
+              <YAxis stroke="#9ca3af" tickFormatter={formatPercent} />
+              <Tooltip formatter={(v) => formatPercent(v)} />
               <Line type="monotone" dataKey="balance_amt" stroke="#FF6B35" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
+      {/* --- Default Rate --- */}
       <div className="bg-gray-800 p-6 rounded-lg mt-6">
         <h2 className="text-lg font-semibold mb-4">Default Rate by Year</h2>
         <ResponsiveContainer width="100%" height={300}>
@@ -69,7 +83,7 @@ const Dashboard = () => {
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
             <XAxis dataKey="year" stroke="#9ca3af" />
             <YAxis stroke="#9ca3af" />
-            <Tooltip />
+            <Tooltip formatter={(v) => formatPeso(v)}/>
             <Line type="monotone" dataKey="default_rate" stroke="#90EE90" strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
