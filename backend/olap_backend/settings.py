@@ -1,17 +1,13 @@
-# compatibility shim for libraries that import ABCs from 'collections'
-# (works around older packages that use `from collections import MutableMapping`)
+from olap_backend import sqlalchemy_compat  # must come before cubes import
+
 try:
     import collections
-    import collections.abc as _cabcs
-    # only set if missing to avoid overriding newer installations
-    if not hasattr(collections, "MutableMapping"):
-        collections.MutableMapping = _cabcs.MutableMapping
-    if not hasattr(collections, "MutableSet"):
-        collections.MutableSet = _cabcs.MutableSet
-    if not hasattr(collections, "MutableSequence"):
-        collections.MutableSequence = _cabcs.MutableSequence
+    import collections.abc as cabc
+    # Patch missing ABCs to avoid ImportError in old libs
+    for name in ("Mapping", "MutableMapping", "MutableSet", "MutableSequence"):
+        if not hasattr(collections, name):
+            setattr(collections, name, getattr(cabc, name))
 except Exception:
-    # defensive: do nothing if something unexpected happens — we'll surface later
     pass
 
 import os

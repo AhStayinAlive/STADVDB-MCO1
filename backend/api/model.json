@@ -6,37 +6,65 @@
   "cubes": [
     {
       "name": "credit_metrics",
-      "label": "Credit Metrics (quarterly)",
+      "label": "Credit Metrics (Quarterly)",
+      "fact": "fact_credit_metrics_qtr",
+
       "measures": [
         { "name": "originations_cnt", "aggregations": ["sum"] },
         { "name": "origination_amt",  "aggregations": ["sum"] },
-        { "name": "balance_amt",     "aggregations": ["sum"] },
-        { "name": "default_rate",    "aggregations": ["avg"] },
-        { "name": "prime_rate",      "aggregations": ["avg"] },
-        { "name": "lending_rate",    "aggregations": ["avg"] }
+        { "name": "balance_amt",      "aggregations": ["sum"] },
+        { "name": "default_rate",     "aggregations": ["avg"] },
+        { "name": "prime_rate",       "aggregations": ["avg"] },
+        { "name": "lending_rate",     "aggregations": ["avg"] }
       ],
+
+      "aggregates": [
+        { "name": "originations_cnt_sum", "measure": "originations_cnt", "function": "sum" },
+        { "name": "origination_amt_sum",  "measure": "origination_amt",  "function": "sum" },
+        { "name": "balance_amt_sum",      "measure": "balance_amt",      "function": "sum" },
+        { "name": "default_rate_avg",     "measure": "default_rate",     "function": "avg"  },
+        { "name": "prime_rate_avg",       "measure": "prime_rate",       "function": "avg"  },
+        { "name": "lending_rate_avg",     "measure": "lending_rate",     "function": "avg"  }
+      ],
+
       "dimensions": ["date_qtr", "geo", "product"],
-      "mappings": {
-        "fact": {
-          "table": "fact_credit_metrics_qtr",
-          "key": ["quarter_key", "geo_key", "product_key"]
+
+      "joins": [
+        {
+          "master": "quarter_key",
+          "detail": "dim_date_qtr.quarter_key",
+          "alias": "date_qtr"
+        },
+        {
+          "master": "geo_key",
+          "detail": "dim_geo.geo_key",
+          "alias": "geo"
+        },
+        {
+          "master": "product_key",
+          "detail": "dim_product.product_key",
+          "alias": "product"
         }
-      }
+      ]
     }
   ],
+
   "dimensions": [
     {
       "name": "date_qtr",
       "label": "Quarter",
       "levels": [
-        { "name": "quarter_key", "level_attribute": "quarter_key", "type": "integer" },
-        { "name": "year",        "level_attribute": "year",        "type": "integer" },
-        { "name": "quarter",     "level_attribute": "quarter",     "type": "integer" }
+        { "name": "year", "label_attribute": "year" },
+        { "name": "quarter", "label_attribute": "quarter" }
+      ],
+      "hierarchies": [
+        { "name": "default", "levels": ["year", "quarter"] }
       ],
       "mappings": {
         "table": "dim_date_qtr",
         "key": "quarter_key",
         "attributes": {
+          "quarter_key": "quarter_key",
           "year": "year",
           "quarter": "quarter",
           "quarter_start": "quarter_start",
@@ -46,28 +74,45 @@
     },
     {
       "name": "geo",
-      "label": "Geo",
+      "label": "Geography",
       "levels": [
-        { "name": "geo_key", "level_attribute": "geo_key", "type": "integer" },
-        { "name": "country", "level_attribute": "country", "type": "string" }
+        { "name": "country", "label_attribute": "country" },
+        { "name": "state_province", "label_attribute": "state_province" },
+        { "name": "city", "label_attribute": "city" }
+      ],
+      "hierarchies": [
+        { "name": "default", "levels": ["country", "state_province", "city"] }
       ],
       "mappings": {
         "table": "dim_geo",
         "key": "geo_key",
-        "attributes": {"country": "country", "state_province": "state_province", "city": "city"}
+        "attributes": {
+          "geo_key": "geo_key",
+          "country": "country",
+          "state_province": "state_province",
+          "city": "city"
+        }
       }
     },
     {
       "name": "product",
       "label": "Product",
       "levels": [
-        { "name": "product_key", "level_attribute": "product_key", "type": "integer" },
-        { "name": "product_code", "level_attribute": "product_code", "type": "string" }
+        { "name": "product_code", "label_attribute": "product_code" },
+        { "name": "segment", "label_attribute": "segment" }
+      ],
+      "hierarchies": [
+        { "name": "default", "levels": ["product_code", "segment"] }
       ],
       "mappings": {
         "table": "dim_product",
         "key": "product_key",
-        "attributes": {"product_code": "product_code", "product_type": "product_type", "segment": "segment"}
+        "attributes": {
+          "product_key": "product_key",
+          "product_code": "product_code",
+          "product_type": "product_type",
+          "segment": "segment"
+        }
       }
     }
   ]
