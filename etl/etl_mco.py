@@ -351,6 +351,16 @@ def create_tables_if_missing(cx, dialect: str):
           FOREIGN KEY (product_key)REFERENCES dim_product(product_key)
         );
         """))
+        # Additional table for borrower-level risk analysis
+        cx.execute(text("""
+        CREATE TABLE IF NOT EXISTS fact_borrower_segments (
+            origination_quarter TEXT NOT NULL,
+            dti_band TEXT,
+            income_band TEXT,
+            default_rate NUMERIC(6,5),
+            loan_count INT
+        );
+        """))
         cx.execute(text("CREATE INDEX IF NOT EXISTS idx_fact_q ON fact_credit_metrics_qtr(quarter_key);"))
         cx.execute(text("CREATE INDEX IF NOT EXISTS idx_fact_p ON fact_credit_metrics_qtr(product_key);"))
         cx.execute(text("CREATE INDEX IF NOT EXISTS idx_fact_g ON fact_credit_metrics_qtr(geo_key);"))

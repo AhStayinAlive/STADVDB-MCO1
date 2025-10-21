@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import kpi, aggregate
+from .routers import kpi, aggregate , visuals
 
 app = FastAPI(title="OLAP API")
 
@@ -16,6 +16,7 @@ app.add_middleware(
 # Routers
 app.include_router(kpi.router)
 app.include_router(aggregate.router)
+app.include_router(visuals.router)
 
 @app.get("/")
 def root():
