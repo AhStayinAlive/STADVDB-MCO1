@@ -1,4 +1,4 @@
-import Dashboard from './olap-dashboard';
+import Dashboard from './dashboard';
 
 function App() {
   return <Dashboard />;

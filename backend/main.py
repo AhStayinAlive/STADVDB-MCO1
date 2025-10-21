@@ -1,19 +1,22 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .queries import get_portfolio_kpi
+from .routers import kpi, aggregate
 
-app = FastAPI(title="MCO1 Credit Risk API")
+app = FastAPI(title="OLAP API")
 
 # Allow frontend requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # replace with your frontend URL in production
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.get("/api/kpi")
-def portfolio_kpi():
-    df = get_portfolio_kpi()
-    return df.to_dict(orient="records")
+# Routers
+app.include_router(kpi.router)
+app.include_router(aggregate.router)
+
+@app.get("/")
+def root():
+    return {"message": "Backend API is running"}
