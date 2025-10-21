@@ -26,13 +26,9 @@ interface QuarterlyMetric {
 }
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState<KPISummary[]>([]);
-  const [quarterly, setQuarterly] = useState<QuarterlyMetric[]>([]);
   const [v1Data, setV1Data] = useState<any[]>([]);
   const [v2Data, setV2Data] = useState<any[]>([]);
   const [v4Data, setV4Data] = useState<any[]>([]);
-  const [v5Events, setV5Events] = useState<any[]>([]);
-  const [v3Data, setV3Data] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -46,7 +42,6 @@ export default function Dashboard() {
           v2,
           v4,
           v5,
-          v3
         ] = await Promise.all([
           fetchKPISummary(),
           fetchQuarterlyMetrics(),
@@ -55,13 +50,9 @@ export default function Dashboard() {
           fetch(`${API_BASE_URL}/visuals/lead_lag`).then(res => res.json()),
           fetch(`${API_BASE_URL}/visuals/event_ribbons`).then(res => res.json())
         ]);
-        setSummary(kpiData);
-        setQuarterly(quarterlyData);
         setV1Data(v1);
         setV2Data(v2);
         setV4Data(v4);
-        setV5Events(v5);
-        setV3Data(v3);
       } catch (err) {
         console.error("API Error:", err);
         setError("Failed to fetch data from backend.");
@@ -120,7 +111,6 @@ export default function Dashboard() {
         <V1DelinquencyTrend labels={v1Labels} datasets={v1Datasets} />
         <V2PrimeVsDelinquency labels={v2Labels} datasets={v2Datasets} />
         <V4LeadLag labels={v4Labels} datasets={v4Datasets} />
-        <V5EventRibbons labels={v2Labels} datasets={v2Datasets} events={v5Events} />
       </section>
     </div>
   );
