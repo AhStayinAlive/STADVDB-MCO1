@@ -44,6 +44,11 @@ MIDDLEWARE = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # vite default
+    "http://127.0.0.1:5173",
+]
+
 ROOT_URLCONF = "olap_backend.urls"
 STATIC_URL = "static/"
 

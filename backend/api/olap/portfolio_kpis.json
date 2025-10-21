@@ -1,0 +1,34 @@
+{
+  "quarters": ["2020Q4", "2021Q1", "2021Q2"],
+  "rows": [
+    {
+      "product": "P1",
+      "quarter": "2021Q1",
+      "originations": 1100,
+      "originations_qoq": 0.1,
+      "originations_yoy": 0.1,
+      "balance": 10500,
+      "balance_qoq": 0.05,
+      "balance_yoy": 0.05,
+      "delinquency_pct": 0.0114286,
+      "chargeoff_pct": 0.00114286
+    }
+  ],
+  "totals": [
+    {
+      "quarter":"2021Q1",
+      "origination_amt": 3300,
+      "balance_amt": 30700,
+      "delinquent_amt": 240,
+      "chargeoff_amt": 24,
+      "delinquency_pct": 0.00782312925170068,
+      "chargeoff_pct": 0.000782312925170068
+    }
+  ],
+  "summary": {
+    "origination_amt_sum": "4153770000000.00",
+    "balance_amt_sum": "35466360000000.00",
+    "delinquent_amt_sum": "0.00",
+    "chargeoff_amt_sum": "0.00"
+  }
+}

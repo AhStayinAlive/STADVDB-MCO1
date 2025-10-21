@@ -11,47 +11,55 @@
     {
       "name": "credit_metrics",
       "label": "Credit Metrics (Quarterly)",
-      "description": "Fact table for credit origination, balance, and default metrics by quarter.",
       "fact": "fact_credit_metrics_qtr",
       "store": "default",
 
       "measures": [
-        { "name": "originations_cnt", "label": "Number of Originations", "aggregations": ["sum"] },
-        { "name": "origination_amt", "label": "Origination Amount", "aggregations": ["sum"] },
-        { "name": "balance_amt", "label": "Balance Amount", "aggregations": ["sum"] },
-        { "name": "default_rate", "label": "Default Rate", "aggregations": ["avg"] },
-        { "name": "prime_rate", "label": "Prime Rate", "aggregations": ["avg"] },
-        { "name": "lending_rate", "label": "Lending Rate", "aggregations": ["avg"] }
+        { "name": "originations_cnt" },
+        { "name": "origination_amt" },
+        { "name": "balance_amt" },
+        { "name": "delinquent_cnt" },
+        { "name": "delinquent_amt" },
+        { "name": "chargeoff_cnt" },
+        { "name": "chargeoff_amt" },
+        { "name": "default_rate" },
+        { "name": "prime_rate" }
       ],
 
       "aggregates": [
-        { "name": "originations_cnt_sum", "function": "sum", "measure": "originations_cnt" },
-        { "name": "origination_amt_sum", "function": "sum", "measure": "origination_amt" },
-        { "name": "balance_amt_sum", "function": "sum", "measure": "balance_amt" },
-        { "name": "default_rate_avg", "function": "avg", "measure": "default_rate" },
-        { "name": "prime_rate_avg", "function": "avg", "measure": "prime_rate" },
-        { "name": "lending_rate_avg", "function": "avg", "measure": "lending_rate" }
+        { "name": "originations_cnt_sum", "measure": "originations_cnt", "function": "sum" },
+        { "name": "origination_amt_sum", "measure": "origination_amt", "function": "sum" },
+        { "name": "balance_amt_sum", "measure": "balance_amt", "function": "sum" },
+        { "name": "delinquent_cnt_sum", "measure": "delinquent_cnt", "function": "sum" },
+        { "name": "delinquent_amt_sum", "measure": "delinquent_amt", "function": "sum" },
+        { "name": "chargeoff_cnt_sum", "measure": "chargeoff_cnt", "function": "sum" },
+        { "name": "chargeoff_amt_sum", "measure": "chargeoff_amt", "function": "sum" },
+        { "name": "default_rate_avg", "measure": "default_rate", "function": "avg" },
+        { "name": "prime_rate_avg", "measure": "prime_rate", "function": "avg" }
+      ],
+
+      "joins": [
+        { "master": "quarter_key",   "detail": "dim_date_qtr.quarter_key", "alias": "date_qtr" },
+        { "master": "geo_key",       "detail": "dim_geo.geo_key",           "alias": "geo" },
+        { "master": "product_key",   "detail": "dim_product.product_key",     "alias": "product" }
       ],
 
       "dimensions": ["date_qtr", "geo", "product"],
 
-      "joins": [
-        {
-          "master": "quarter_key",
-          "detail": "dim_date_qtr.quarter_key",
-          "alias": "date_qtr"
-        },
-        {
-          "master": "geo_key",
-          "detail": "dim_geo.geo_key",
-          "alias": "geo"
-        },
-        {
-          "master": "product_key",
-          "detail": "dim_product.product_key",
-          "alias": "product"
-        }
-      ]
+      "mappings": {
+        "quarter_key": "quarter_key",
+        "geo_key": "geo_key",
+        "product_key": "product_key",
+        "originations_cnt": "originations_cnt",
+        "origination_amt": "origination_amt",
+        "balance_amt": "balance_amt",
+        "delinquent_cnt": "delinquent_cnt",
+        "delinquent_amt": "delinquent_amt",
+        "chargeoff_cnt": "chargeoff_cnt",
+        "chargeoff_amt": "chargeoff_amt",
+        "default_rate": "default_rate",
+        "prime_rate": "prime_rate"
+      }
     }
   ],
 
@@ -88,28 +96,14 @@
         }
       }
     },
+
     {
       "name": "geo",
       "label": "Geography",
       "levels": [
-        {
-          "name": "country",
-          "label": "Country",
-          "attributes": ["country"],
-          "label_attribute": "country"
-        },
-        {
-          "name": "state_province",
-          "label": "State/Province",
-          "attributes": ["state_province"],
-          "label_attribute": "state_province"
-        },
-        {
-          "name": "city",
-          "label": "City",
-          "attributes": ["city"],
-          "label_attribute": "city"
-        }
+        { "name": "country", "attributes": ["country"], "label_attribute": "country" },
+        { "name": "state_province", "attributes": ["state_province"], "label_attribute": "state_province" },
+        { "name": "city", "attributes": ["city"], "label_attribute": "city" }
       ],
       "hierarchies": [
         { "name": "default", "levels": ["country", "state_province", "city"] }
@@ -125,22 +119,13 @@
         }
       }
     },
+
     {
       "name": "product",
       "label": "Product",
       "levels": [
-        {
-          "name": "product_code",
-          "label": "Product Code",
-          "attributes": ["product_code"],
-          "label_attribute": "product_code"
-        },
-        {
-          "name": "segment",
-          "label": "Segment",
-          "attributes": ["segment"],
-          "label_attribute": "segment"
-        }
+        { "name": "product_code", "attributes": ["product_code"], "label_attribute": "product_code" },
+        { "name": "segment", "attributes": ["segment"], "label_attribute": "segment" }
       ],
       "hierarchies": [
         { "name": "default", "levels": ["product_code", "segment"] }
