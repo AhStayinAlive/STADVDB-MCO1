@@ -18,19 +18,48 @@ def get_db():
 # === V1: Delinquency & Charge-off Trends (by Product) ===
 @router.get("/delinquency_trend")
 def delinquency_trend(db: Session = Depends(get_db)):
+    """
+    Returns product-level delinquency and derived charge-off rate (quarterly).
+    Charge-off = delinquency rate lagged by 1 quarter within each product.
+    """
     stmt = text("""
+        WITH ranked AS (
+            SELECT 
+                dp.product_code,
+                dq.year,
+                dq.quarter,
+                AVG(f.default_rate) AS delinquency,
+                ROW_NUMBER() OVER (
+                    PARTITION BY dp.product_code 
+                    ORDER BY dq.year, dq.quarter
+                ) AS rn
+            FROM fact_credit_metrics_qtr f
+            JOIN dim_date_qtr dq ON f.quarter_key = dq.quarter_key
+            JOIN dim_product dp ON f.product_key = dp.product_key
+            GROUP BY dp.product_code, dq.year, dq.quarter
+        ),
+        lagged AS (
+            SELECT 
+                product_code,
+                year,
+                quarter,
+                delinquency,
+                LAG(delinquency) OVER (
+                    PARTITION BY product_code ORDER BY year, quarter
+                ) AS chargeoff_rate
+            FROM ranked
+        )
         SELECT 
-            dp.product_code,
-            dq.year,
-            dq.quarter,
-            AVG(f.default_rate) AS delinquency
-        FROM fact_credit_metrics_qtr f
-        JOIN dim_date_qtr dq ON f.quarter_key = dq.quarter_key
-        JOIN dim_product dp ON f.product_key = dp.product_key
-        GROUP BY dp.product_code, dq.year, dq.quarter
-        ORDER BY dp.product_code, dq.year, dq.quarter;
+            product_code,
+            year,
+            quarter,
+            delinquency,
+            COALESCE(chargeoff_rate, 0) AS chargeoff_rate
+        FROM lagged
+        ORDER BY product_code, year, quarter;
     """)
     return [dict(r._mapping) for r in db.execute(stmt)]
+
 
 
 @router.get("/prime_vs_delinquency")
@@ -51,7 +80,8 @@ def prime_vs_delinquency(db: Session = Depends(get_db)):
 def lead_lag_analysis(db: Session = Depends(get_db), max_lag: int = 2):
     """
     Compute lead-lag correlation between macro delinquency (DRALACBN) and each product's delinquency.
-    Returns delinquency values shifted by 0..max_lag quarters for lead analysis.
+    Tests if macro delinquency from prior quarters predicts current product delinquency.
+    Returns product delinquency with macro delinquency from 0, 1, and 2 quarters ago.
     """
     stmt = text(f"""
         WITH product_delinq AS (
@@ -84,9 +114,9 @@ def lead_lag_analysis(db: Session = Depends(get_db), max_lag: int = 2):
             year,
             quarter,
             delinquency,
-            macro_delinquency,
-            LEAD(macro_delinquency, 1) OVER (PARTITION BY product_code ORDER BY year, quarter) AS lag_1,
-            LEAD(macro_delinquency, 2) OVER (PARTITION BY product_code ORDER BY year, quarter) AS lag_2
+            macro_delinquency AS macro_lag_0,
+            LAG(macro_delinquency, 1) OVER (PARTITION BY product_code ORDER BY year, quarter) AS macro_lag_1,
+            LAG(macro_delinquency, 2) OVER (PARTITION BY product_code ORDER BY year, quarter) AS macro_lag_2
         FROM joined
         ORDER BY product_code, year, quarter;
     """)
@@ -96,9 +126,9 @@ def lead_lag_analysis(db: Session = Depends(get_db), max_lag: int = 2):
             "year": r.year,
             "quarter": r.quarter,
             "delinquency": float(r.delinquency or 0),
-            "macro_delinquency": float(r.macro_delinquency or 0),
-            "lag_1": float(r.lag_1 or 0),
-            "lag_2": float(r.lag_2 or 0),
+            "macro_lag_0": float(r.macro_lag_0 or 0),
+            "macro_lag_1": float(r.macro_lag_1 or 0) if r.macro_lag_1 is not None else None,
+            "macro_lag_2": float(r.macro_lag_2 or 0) if r.macro_lag_2 is not None else None,
         }
         for r in db.execute(stmt)
     ]
