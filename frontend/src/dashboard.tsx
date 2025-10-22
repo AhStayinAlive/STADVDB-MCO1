@@ -11,15 +11,18 @@ export default function Dashboard() {
   const [v1Data, setV1Data] = useState<any[]>([]);
   const [v2Data, setV2Data] = useState<any[]>([]);
   const [v4Data, setV4Data] = useState<any[]>([]);
+  const [kpiData, setKpiData] = useState<any[]>([]);
+  const [qoqData, setQoqData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // 🎛️ Filter states
+  // 🎛️ Filters
   const [yearStart, setYearStart] = useState(2012);
   const [yearEnd, setYearEnd] = useState(2025);
 
-  // 🔄 Reset filters to defaults
+  // 🔄 Reset filters
   const resetFilters = () => {
+    setSelectedProduct("ALL");
     setYearStart(2012);
     setYearEnd(2025);
   };
@@ -27,13 +30,16 @@ export default function Dashboard() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [kpiData, quarterlyData, v1, v2, v4] = await Promise.all([
+        const [kpi, qoq, v1, v2, v4] = await Promise.all([
           fetchKPISummary(),
           fetchQuarterlyMetrics(),
           fetch(`${API_BASE_URL}/visuals/prime_vs_delinquency`).then((res) => res.json()),
           fetch(`${API_BASE_URL}/visuals/delinquency_trend`).then((res) => res.json()),
           fetch(`${API_BASE_URL}/visuals/lead_lag`).then((res) => res.json()),
         ]);
+
+        setKpiData(kpi);
+        setQoqData(qoq);
         setV1Data(v1);
         setV2Data(v2);
         setV4Data(v4);
@@ -47,15 +53,15 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  // ✅ Stable hook order — derived product list
+  // ✅ Stable hook order
   const allProducts = useMemo(() => {
-    const all = new Set<string>();
-    v2Data.forEach((d) => all.add(d.product_code));
-    v4Data.forEach((d) => all.add(d.product_code));
-    return Array.from(all).sort();
+    const set = new Set<string>();
+    v2Data.forEach((d) => set.add(d.product_code));
+    v4Data.forEach((d) => set.add(d.product_code));
+    return Array.from(set).sort();
   }, [v2Data, v4Data]);
 
-  // 🔍 Filtering logic
+  // 🔍 Filter logic
   const filterFn = (d: any) =>
     d.year >= yearStart &&
     d.year <= yearEnd;
@@ -63,6 +69,8 @@ export default function Dashboard() {
   const filteredV1 = v1Data.filter((d) => d.year >= yearStart && d.year <= yearEnd);
   const filteredV2 = v2Data.filter(filterFn);
   const filteredV4 = v4Data.filter(filterFn);
+  const filteredKPI = kpiData.filter((d) => d.year >= yearStart && d.year <= yearEnd);
+  const filteredQoQ = qoqData.filter((d) => d.year >= yearStart && d.year <= yearEnd);
 
   // === Derived datasets ===
   const v1Labels = filteredV1.map((d) => `${d.year}-Q${d.quarter}`);
@@ -111,29 +119,76 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 🔁 Reset button */}
-        <div>
-          <button
-            onClick={resetFilters}
-            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium transition"
-          >
-            Reset Filters
-          </button>
-        </div>
+        <button
+          onClick={resetFilters}
+          className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium transition"
+        >
+          Reset Filters
+        </button>
       </div>
 
-      {/* 📈 Chart Grid */}
+    
+      {/* 📈 Visualization Grid */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <V1DelinquencyTrend
-          labels={v1Labels}
-          dprimeData={v1Dprime}
-          dralacbnData={v1Dralacbn}
-        />
-
+        <V1DelinquencyTrend labels={v1Labels} dprimeData={v1Dprime} dralacbnData={v1Dralacbn} />
         <V2PrimeVsDelinquency labels={v2Labels} data={v2ChartData} />
-
         <V4LeadLag data={filteredV4} />
       </section>
+
+       {/* 🧾 KPI Summary Table */}
+      <section className="bg-white p-4 rounded-lg shadow">
+        <h2 className="text-lg font-semibold mb-3">KPI Summary</h2>
+        <table className="min-w-full border border-gray-200 text-sm">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="border px-3 py-1">Year</th>
+              <th className="border px-3 py-1">Total Origination</th>
+              <th className="border px-3 py-1">Total Balance</th>
+              <th className="border px-3 py-1">Avg Default</th>
+              <th className="border px-3 py-1">Avg Prime</th>
+              <th className="border px-3 py-1">Avg Lending</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredKPI.map((row) => (
+              <tr key={row.year}>
+                <td className="border px-3 py-1">{row.year}</td>
+                <td className="border px-3 py-1">{row.total_origination.toLocaleString()}</td>
+                <td className="border px-3 py-1">{row.total_balance.toLocaleString()}</td>
+                <td className="border px-3 py-1">{(row.avg_default * 100).toFixed(2)}%</td>
+                <td className="border px-3 py-1">{(row.avg_prime * 100).toFixed(2)}%</td>
+                <td className="border px-3 py-1">{(row.avg_lending * 100).toFixed(2)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {/* 📅 QoQ Metrics Table */}
+      <section className="bg-white p-4 rounded-lg shadow">
+        <h2 className="text-lg font-semibold mb-3">Quarterly QoQ Metrics</h2>
+        <table className="min-w-full border border-gray-200 text-sm">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="border px-3 py-1">Year</th>
+              <th className="border px-3 py-1">Quarter</th>
+              <th className="border px-3 py-1">Balance Total</th>
+              <th className="border px-3 py-1">Avg Default</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredQoQ.map((row, idx) => (
+              <tr key={idx}>
+                <td className="border px-3 py-1">{row.year}</td>
+                <td className="border px-3 py-1">Q{row.quarter}</td>
+                <td className="border px-3 py-1">{row.balance_total.toLocaleString()}</td>
+                <td className="border px-3 py-1">{(row.avg_default * 100).toFixed(2)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
     </div>
   );
 }
