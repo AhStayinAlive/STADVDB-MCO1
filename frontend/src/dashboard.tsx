@@ -20,9 +20,11 @@ export default function Dashboard() {
   const [yearStart, setYearStart] = useState(2012);
   const [yearEnd, setYearEnd] = useState(2025);
 
+  // 📑 Tab State
+  const [activeTab, setActiveTab] = useState<"charts" | "tables">("charts");
+
   // 🔄 Reset filters
   const resetFilters = () => {
-    setSelectedProduct("ALL");
     setYearStart(2012);
     setYearEnd(2025);
   };
@@ -90,12 +92,11 @@ export default function Dashboard() {
   if (error) return <div className="p-8 text-red-600 font-semibold">{error}</div>;
 
   return (
-    <div className="p-8 space-y-10">
+    <div className="p-8 space-y-6">
       <h1 className="text-3xl font-bold mb-6">📊 Credit Metrics Dashboard</h1>
 
       {/* 🎛️ Global Filters */}
       <div className="flex flex-wrap items-end gap-6 mb-6 bg-white p-4 rounded-lg shadow">
-
         <div>
           <label className="block text-sm text-gray-600">Year Range</label>
           <div className="flex items-center gap-2">
@@ -127,68 +128,101 @@ export default function Dashboard() {
         </button>
       </div>
 
-    
-      {/* 📈 Visualization Grid */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <V1DelinquencyTrend labels={v1Labels} dprimeData={v1Dprime} dralacbnData={v1Dralacbn} />
-        <V2PrimeVsDelinquency labels={v2Labels} data={v2ChartData} />
-        <V4LeadLag data={filteredV4} />
-      </section>
+      {/* 📑 Tab Navigation */}
+      <div className="flex justify-center gap-2 border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab("charts")}
+          className={`px-6 py-3 font-medium transition ${
+            activeTab === "charts"
+              ? "border-b-2 border-blue-600 text-blue-600"
+              : "text-gray-600 hover:text-gray-800"
+          }`}
+        >
+          📈 Charts
+        </button>
+        <button
+          onClick={() => setActiveTab("tables")}
+          className={`px-6 py-3 font-medium transition ${
+            activeTab === "tables"
+              ? "border-b-2 border-blue-600 text-blue-600"
+              : "text-gray-600 hover:text-gray-800"
+          }`}
+        >
+          📋 Tables
+        </button>
+      </div>
 
-       {/* 🧾 KPI Summary Table */}
-      <section className="bg-white p-4 rounded-lg shadow">
-        <h2 className="text-lg font-semibold mb-3">KPI Summary</h2>
-        <table className="min-w-full border border-gray-200 text-sm">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border px-3 py-1">Year</th>
-              <th className="border px-3 py-1">Total Origination</th>
-              <th className="border px-3 py-1">Total Balance</th>
-              <th className="border px-3 py-1">Avg Default</th>
-              <th className="border px-3 py-1">Avg Prime</th>
-              <th className="border px-3 py-1">Avg Lending</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredKPI.map((row) => (
-              <tr key={row.year}>
-                <td className="border px-3 py-1">{row.year}</td>
-                <td className="border px-3 py-1">{row.total_origination.toLocaleString()}</td>
-                <td className="border px-3 py-1">{row.total_balance.toLocaleString()}</td>
-                <td className="border px-3 py-1">{(row.avg_default * 100).toFixed(2)}%</td>
-                <td className="border px-3 py-1">{(row.avg_prime * 100).toFixed(2)}%</td>
-                <td className="border px-3 py-1">{(row.avg_lending * 100).toFixed(2)}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+      {/* 📈 Charts Panel */}
+      {activeTab === "charts" && (
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <V1DelinquencyTrend labels={v1Labels} dprimeData={v1Dprime} dralacbnData={v1Dralacbn} />
+          <V2PrimeVsDelinquency labels={v2Labels} data={v2ChartData} />
+          <V4LeadLag data={filteredV4} />
+        </section>
+      )}
 
-      {/* 📅 QoQ Metrics Table */}
-      <section className="bg-white p-4 rounded-lg shadow">
-        <h2 className="text-lg font-semibold mb-3">Quarterly QoQ Metrics</h2>
-        <table className="min-w-full border border-gray-200 text-sm">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border px-3 py-1">Year</th>
-              <th className="border px-3 py-1">Quarter</th>
-              <th className="border px-3 py-1">Balance Total</th>
-              <th className="border px-3 py-1">Avg Default</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredQoQ.map((row, idx) => (
-              <tr key={idx}>
-                <td className="border px-3 py-1">{row.year}</td>
-                <td className="border px-3 py-1">Q{row.quarter}</td>
-                <td className="border px-3 py-1">{row.balance_total.toLocaleString()}</td>
-                <td className="border px-3 py-1">{(row.avg_default * 100).toFixed(2)}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+      {/* 📋 Tables Panel */}
+      {activeTab === "tables" && (
+        <div className="space-y-6">
+          {/* 🧾 KPI Summary Table */}
+          <section className="bg-white p-4 rounded-lg shadow">
+            <h2 className="text-lg font-semibold mb-3">KPI Summary</h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full border border-gray-200 text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="border px-3 py-2 text-left">Year</th>
+                    <th className="border px-3 py-2 text-right">Total Origination</th>
+                    <th className="border px-3 py-2 text-right">Total Balance</th>
+                    <th className="border px-3 py-2 text-right">Avg Default</th>
+                    <th className="border px-3 py-2 text-right">Avg Prime</th>
+                    <th className="border px-3 py-2 text-right">Avg Lending</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredKPI.map((row) => (
+                    <tr key={row.year} className="hover:bg-gray-50">
+                      <td className="border px-3 py-2">{row.year}</td>
+                      <td className="border px-3 py-2 text-right">{row.total_origination.toLocaleString()}</td>
+                      <td className="border px-3 py-2 text-right">{row.total_balance.toLocaleString()}</td>
+                      <td className="border px-3 py-2 text-right">{(row.avg_default * 100).toFixed(2)}%</td>
+                      <td className="border px-3 py-2 text-right">{(row.avg_prime * 100).toFixed(2)}%</td>
+                      <td className="border px-3 py-2 text-right">{(row.avg_lending * 100).toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
+          {/* 📅 QoQ Metrics Table */}
+          <section className="bg-white p-4 rounded-lg shadow">
+            <h2 className="text-lg font-semibold mb-3">Quarterly QoQ Metrics</h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full border border-gray-200 text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="border px-3 py-2 text-left">Year</th>
+                    <th className="border px-3 py-2 text-left">Quarter</th>
+                    <th className="border px-3 py-2 text-right">Balance Total</th>
+                    <th className="border px-3 py-2 text-right">Avg Default</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredQoQ.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="border px-3 py-2">{row.year}</td>
+                      <td className="border px-3 py-2">Q{row.quarter}</td>
+                      <td className="border px-3 py-2 text-right">{row.balance_total.toLocaleString()}</td>
+                      <td className="border px-3 py-2 text-right">{(row.avg_default * 100).toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
