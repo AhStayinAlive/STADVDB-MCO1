@@ -319,7 +319,7 @@ def create_tables_if_missing(cx, dialect: str):
         """))
         cx.execute(text("""
         CREATE TABLE IF NOT EXISTS dim_geo(
-          geo_key SERIAL PRIMARY KEY,
+          geo_key INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
           country TEXT,
           state_province TEXT,
           city TEXT
@@ -327,7 +327,7 @@ def create_tables_if_missing(cx, dialect: str):
         """))
         cx.execute(text("""
         CREATE TABLE IF NOT EXISTS dim_product(
-          product_key SERIAL PRIMARY KEY,
+          product_key INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
           product_code TEXT,
           product_type TEXT,
           segment     TEXT,
@@ -349,6 +349,16 @@ def create_tables_if_missing(cx, dialect: str):
           FOREIGN KEY (quarter_key) REFERENCES dim_date_qtr(quarter_key),
           FOREIGN KEY (geo_key)    REFERENCES dim_geo(geo_key),
           FOREIGN KEY (product_key)REFERENCES dim_product(product_key)
+        );
+        """))
+        # Additional table for borrower-level risk analysis
+        cx.execute(text("""
+        CREATE TABLE IF NOT EXISTS fact_borrower_segments (
+            origination_quarter TEXT NOT NULL,
+            dti_band TEXT,
+            income_band TEXT,
+            default_rate NUMERIC(6,5),
+            loan_count INT
         );
         """))
         cx.execute(text("CREATE INDEX IF NOT EXISTS idx_fact_q ON fact_credit_metrics_qtr(quarter_key);"))
@@ -431,32 +441,69 @@ def upsert_dim_date_rows(cx, dialect: str, rows: List[Dict]):
         cx.execute(sql, r)
 
 def get_or_make_geo(cx, country: Optional[str], state: Optional[str], city: Optional[str]) -> int:
+    # Check if record already exists (Postgres-safe NULL logic)
     sel = text("""
         SELECT geo_key FROM dim_geo
-        WHERE country <=> :c AND state_province <=> :s AND city <=> :t
+        WHERE (country = :c OR (country IS NULL AND :c IS NULL))
+        AND (state_province = :s OR (state_province IS NULL AND :s IS NULL))
+        AND (city = :t OR (city IS NULL AND :t IS NULL))
         LIMIT 1
     """)
     row = cx.execute(sel, {"c": country, "s": state, "t": city}).fetchone()
-    if row: return int(row[0])
-    cx.execute(text("INSERT INTO dim_geo(country, state_province, city) VALUES (:c, :s, :t)"),
-               {"c": country, "s": state, "t": city})
-    return int(cx.execute(text("SELECT LAST_INSERT_ID()")).scalar_one())
+    if row:
+        return int(row[0])
+
+    # Detect SQL dialect (so ETL works in both MySQL and PostgreSQL)
+    dialect = cx.engine.dialect.name
+
+    if "postgres" in dialect:
+        # PostgreSQL version using RETURNING
+        result = cx.execute(
+            text("""
+                INSERT INTO dim_geo (country, state_province, city)
+                VALUES (:c, :s, :t)
+                RETURNING geo_key
+            """),
+            {"c": country, "s": state, "t": city}
+        )
+        return int(result.scalar_one())
+
+    else:
+        # MySQL version using LAST_INSERT_ID()
+        cx.execute(
+            text("INSERT INTO dim_geo (country, state_province, city) VALUES (:c, :s, :t)"),
+            {"c": country, "s": state, "t": city}
+        )
+        return int(cx.execute(text("SELECT LAST_INSERT_ID()")).scalar_one())
+
 
 def ensure_dim_product_schema(cx):
     # Already created with UNIQUE (product_code, product_type, segment)
     pass
 
 def get_or_make_product(cx, code: Optional[str], ptype: Optional[str], seg: Optional[str]) -> int:
+    """PostgreSQL-safe get-or-insert for product dimension."""
     sel = text("""
         SELECT product_key FROM dim_product
-        WHERE product_code <=> :code AND product_type <=> :ptype AND segment <=> :seg
+        WHERE (product_code = :code OR (product_code IS NULL AND :code IS NULL))
+          AND (product_type = :ptype OR (product_type IS NULL AND :ptype IS NULL))
+          AND (segment = :seg OR (segment IS NULL AND :seg IS NULL))
         LIMIT 1
     """)
     row = cx.execute(sel, {"code": code, "ptype": ptype, "seg": seg}).fetchone()
-    if row: return int(row[0])
-    cx.execute(text("INSERT INTO dim_product(product_code, product_type, segment) VALUES (:code, :ptype, :seg)"),
-               {"code": code, "ptype": ptype, "seg": seg})
-    return int(cx.execute(text("SELECT LAST_INSERT_ID()")).scalar_one())
+    if row:
+        return int(row[0])
+
+    result = cx.execute(
+        text("""
+            INSERT INTO dim_product (product_code, product_type, segment)
+            VALUES (:code, :ptype, :seg)
+            RETURNING product_key
+        """),
+        {"code": code, "ptype": ptype, "seg": seg}
+    )
+    return int(result.scalar_one())
+
 
 def upsert_fact_rows(cx, dialect: str, rows: List[Dict]):
     if not rows: return
@@ -561,7 +608,9 @@ def write_run_report(base, orig, bal, prime, dfltq, lendy, out_path="/tmp/etl_qu
                 .query("c>1"))
     rep["dupes_on_quarter_key"] = int(len(dup))
 
-    rep["generated_at"] = datetime.utcnow().isoformat() + "Z"
+    from datetime import datetime, timezone
+    rep["generated_at"] = datetime.now(timezone.utc).isoformat()
+
 
     # Write JSON
     try:
