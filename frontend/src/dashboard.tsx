@@ -14,10 +14,15 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // 🌍 Global filters
-  const [selectedProduct, setSelectedProduct] = useState("ALL");
+  // 🎛️ Filter states
   const [yearStart, setYearStart] = useState(2012);
   const [yearEnd, setYearEnd] = useState(2025);
+
+  // 🔄 Reset filters to defaults
+  const resetFilters = () => {
+    setYearStart(2012);
+    setYearEnd(2025);
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -42,16 +47,16 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  // ✅ Hooks always run before conditionals
+  // ✅ Stable hook order — derived product list
   const allProducts = useMemo(() => {
     const all = new Set<string>();
     v2Data.forEach((d) => all.add(d.product_code));
     v4Data.forEach((d) => all.add(d.product_code));
-    return Array.from(all);
+    return Array.from(all).sort();
   }, [v2Data, v4Data]);
 
+  // 🔍 Filtering logic
   const filterFn = (d: any) =>
-    (selectedProduct === "ALL" || d.product_code === selectedProduct) &&
     d.year >= yearStart &&
     d.year <= yearEnd;
 
@@ -59,7 +64,7 @@ export default function Dashboard() {
   const filteredV2 = v2Data.filter(filterFn);
   const filteredV4 = v4Data.filter(filterFn);
 
-  // Derived datasets
+  // === Derived datasets ===
   const v1Labels = filteredV1.map((d) => `${d.year}-Q${d.quarter}`);
   const v1Dprime = filteredV1.map((d) => d.prime_rate);
   const v1Dralacbn = filteredV1.map((d) => d.delinquency);
@@ -73,7 +78,6 @@ export default function Dashboard() {
     chargeoff: d.chargeoff_rate ?? 0,
   }));
 
-  // ✅ Only one return statement below
   if (loading) return <div className="p-8 text-gray-500">Loading dashboard data...</div>;
   if (error) return <div className="p-8 text-red-600 font-semibold">{error}</div>;
 
@@ -82,20 +86,7 @@ export default function Dashboard() {
       <h1 className="text-3xl font-bold mb-6">📊 Credit Metrics Dashboard</h1>
 
       {/* 🎛️ Global Filters */}
-      <div className="flex flex-wrap items-center gap-4 mb-6 bg-white p-4 rounded-lg shadow">
-        <div>
-          <label className="block text-sm text-gray-600">Product</label>
-          <select
-            value={selectedProduct}
-            onChange={(e) => setSelectedProduct(e.target.value)}
-            className="border border-gray-300 rounded-md px-2 py-1 text-sm"
-          >
-            <option value="ALL">All</option>
-            {allProducts.map((p) => (
-              <option key={p}>{p}</option>
-            ))}
-          </select>
-        </div>
+      <div className="flex flex-wrap items-end gap-6 mb-6 bg-white p-4 rounded-lg shadow">
 
         <div>
           <label className="block text-sm text-gray-600">Year Range</label>
@@ -119,9 +110,19 @@ export default function Dashboard() {
             />
           </div>
         </div>
+
+        {/* 🔁 Reset button */}
+        <div>
+          <button
+            onClick={resetFilters}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium transition"
+          >
+            Reset Filters
+          </button>
+        </div>
       </div>
 
-      {/* 📊 Chart Grid */}
+      {/* 📈 Chart Grid */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <V1DelinquencyTrend
           labels={v1Labels}
